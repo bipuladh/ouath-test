@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ticket-check
+  labels:
+    app: ticket-check
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ticket-check
+  template:
+    metadata:
+      labels:
+        app: ticket-check
+    spec:
+      containers:
+        - name: ticket-check
+          image: quay.io/badhikar/test-auth:v1
+          ports:
+            - containerPort: 8080
+        - name: oauth-proxy 
+          args:
+            - -provider=openshift
+            - -https-address=:8888
+            - -http-address=
+            - -email-domain=*
+            - -upstream=http://localhost:8080/validate
+            - -tls-cert=/etc/tls/private/tls.crt
+            - -tls-key=/etc/tls/private/tls.key
+            - -cookie-secret-file=/etc/proxy/secrets/session_secret
+            - -openshift-service-account=ticket-check
+            - -openshift-ca=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          image: quay.io/openshift/origin-oauth-proxy:4.14
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: oauth-proxy
+              containerPort: 8888    
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /etc/tls/private
+              name: secret-ticket-check-tls
+            - mountPath: /etc/proxy/secrets
+              name: secret-ticket-check-proxy
+      serviceAccountName: ticket-check
+      volumes:
+        - name: secret-ticket-check-tls
+          secret:
+            defaultMode: 420
+            secretName: ticket-check
+        - name: secret-ticket-check-proxy
+          secret:
+            defaultMode: 420
+            secretName: ticket-check-proxy
